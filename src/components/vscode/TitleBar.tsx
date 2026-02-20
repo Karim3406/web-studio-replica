@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { Minus, Square, X, Code2, FolderOpen, Save, FolderInput, FilePlus } from "lucide-react";
+import { Minus, Square, X, Code2, FolderOpen, Save, FolderInput, FilePlus, Download, Upload } from "lucide-react";
 
 interface TitleBarProps {
   onSaveToLocal?: () => void;
   onOpenLocalFolder?: () => void;
+  onImportProject?: () => void;
   onNewFile?: () => void;
 }
 
-const TitleBar = ({ onSaveToLocal, onOpenLocalFolder, onNewFile }: TitleBarProps) => {
+const TitleBar = ({ onSaveToLocal, onOpenLocalFolder, onImportProject, onNewFile }: TitleBarProps) => {
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -51,13 +52,20 @@ const TitleBar = ({ onSaveToLocal, onOpenLocalFolder, onNewFile }: TitleBarProps
                   Open Folder...
                   <span className="ml-auto text-muted-foreground text-xs">Ctrl+O</span>
                 </button>
+                <button
+                  className="w-full flex items-center gap-3 px-3 py-1.5 text-[13px] text-foreground hover:bg-accent text-left"
+                  onClick={() => { onImportProject?.(); setFileMenuOpen(false); }}
+                >
+                  <Upload size={14} className="text-muted-foreground" />
+                  Import Project (.json)...
+                </button>
                 <div className="border-t border-border my-1" />
                 <button
                   className="w-full flex items-center gap-3 px-3 py-1.5 text-[13px] text-foreground hover:bg-accent text-left"
                   onClick={() => { onSaveToLocal?.(); setFileMenuOpen(false); }}
                 >
-                  <Save size={14} className="text-muted-foreground" />
-                  Save Project to Folder...
+                  <Download size={14} className="text-muted-foreground" />
+                  Export Project (.json)
                   <span className="ml-auto text-muted-foreground text-xs">Ctrl+S</span>
                 </button>
               </div>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import TitleBar from "@/components/vscode/TitleBar";
 import ActivityBar from "@/components/vscode/ActivityBar";
@@ -146,100 +146,171 @@ const Index = () => {
     setCursorPos({ line, col });
   }, []);
 
-  const handleSaveToLocal = useCallback(async () => {
-    try {
-      if (!("showDirectoryPicker" in window)) {
-        toast.error("Your browser doesn't support the File System Access API. Please use Chrome or Edge.");
-        return;
-      }
-      const dirHandle = await (window as any).showDirectoryPicker({ mode: "readwrite" });
-      
-      const writeFileToDir = async (handle: any, path: string[], fileName: string, content: string) => {
-        let current = handle;
-        for (const dir of path) {
-          current = await current.getDirectoryHandle(dir, { create: true });
-        }
-        const fileHandle = await current.getFileHandle(fileName, { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(content);
-        await writable.close();
-      };
+  const handleSaveToLocal = useCallback(() => {
+    // Build all files into a single JSON and download as zip-like structure
+    // We'll download each file individually or as a combined JSON
+    const allFiles: { path: string; content: string }[] = [];
 
-      const writeTree = async (nodes: FileNode[], parentPath: string[]) => {
-        for (const node of nodes) {
-          if (node.type === "folder" && node.children) {
-            await writeTree(node.children, [...parentPath, node.name]);
-          } else if (node.type === "file" && files[node.name]) {
-            await writeFileToDir(dirHandle, parentPath, node.name, files[node.name].content);
-          }
+    const collectFiles = (nodes: FileNode[], parentPath: string) => {
+      for (const node of nodes) {
+        if (node.type === "folder" && node.children) {
+          collectFiles(node.children, parentPath ? `${parentPath}/${node.name}` : node.name);
+        } else if (node.type === "file" && files[node.name]) {
+          allFiles.push({
+            path: parentPath ? `${parentPath}/${node.name}` : node.name,
+            content: files[node.name].content,
+          });
         }
-      };
-
-      await writeTree(fileTree, []);
-      toast.success(`Project saved to "${dirHandle.name}" successfully!`);
-    } catch (err: any) {
-      if (err.name !== "AbortError") {
-        toast.error("Failed to save project: " + err.message);
       }
-    }
+    };
+    collectFiles(fileTree, "");
+
+    // Download as a single JSON manifest
+    const manifest = JSON.stringify({ files: allFiles }, null, 2);
+    const blob = new Blob([manifest], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "project-export.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Project exported with ${allFiles.length} files!`);
   }, [files, fileTree]);
 
-  const handleOpenLocalFolder = useCallback(async () => {
-    try {
-      if (!("showDirectoryPicker" in window)) {
-        toast.error("Your browser doesn't support the File System Access API. Please use Chrome or Edge.");
-        return;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpenLocalFolder = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFolderSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputFiles = e.target.files;
+    if (!inputFiles || inputFiles.length === 0) return;
+
+    const langMap: Record<string, string> = {
+      tsx: "tsx", ts: "ts", jsx: "tsx", js: "ts",
+      json: "json", css: "css", md: "md", html: "html",
+      svg: "svg", ico: "ico", txt: "text",
+    };
+    const binaryExts = ["png", "jpg", "jpeg", "gif", "webp", "woff", "woff2", "ttf", "otf", "eot", "ico", "mp3", "mp4"];
+    const skipDirs = ["node_modules", ".git", "dist", ".next", ".cache"];
+
+    const newFiles: Record<string, FileData> = {};
+    const treeMap = new Map<string, FileNode>();
+    const rootChildren: FileNode[] = [];
+    let pending = 0;
+    let total = 0;
+
+    Array.from(inputFiles).forEach((file) => {
+      const path = (file as any).webkitRelativePath || file.name;
+      const parts = path.split("/");
+      // Remove root folder name (the selected folder)
+      if (parts.length > 1) parts.shift();
+      // Skip unwanted dirs
+      if (parts.some((p: string) => skipDirs.includes(p))) return;
+
+      const fileName = parts[parts.length - 1];
+      const ext = fileName.split(".").pop() || "";
+
+      // Build folder structure
+      let currentChildren = rootChildren;
+      for (let i = 0; i < parts.length - 1; i++) {
+        const dirName = parts[i];
+        const key = parts.slice(0, i + 1).join("/");
+        if (!treeMap.has(key)) {
+          const folder: FileNode = { name: dirName, type: "folder", children: [] };
+          treeMap.set(key, folder);
+          currentChildren.push(folder);
+        }
+        currentChildren = treeMap.get(key)!.children!;
       }
-      const dirHandle = await (window as any).showDirectoryPicker({ mode: "read" });
 
-      const newFiles: Record<string, FileData> = {};
-      const newTree: FileNode[] = [];
+      const language = langMap[ext] || "text";
+      currentChildren.push({ name: fileName, type: "file", language });
 
-      const langMap: Record<string, string> = {
-        tsx: "tsx", ts: "ts", jsx: "tsx", js: "ts",
-        json: "json", css: "css", md: "md", html: "html",
-        svg: "svg", ico: "ico", txt: "text",
-      };
+      if (binaryExts.includes(ext)) return;
 
-      const readDir = async (handle: any, treeArr: FileNode[]) => {
-        for await (const entry of handle.values()) {
-          if (entry.kind === "file") {
-            const file = await entry.getFile();
-            const ext = file.name.split(".").pop() || "";
-            // Skip binary files
-            if (["png", "jpg", "jpeg", "gif", "webp", "woff", "woff2", "ttf", "otf", "eot", "ico", "mp3", "mp4"].includes(ext)) {
-              treeArr.push({ name: file.name, type: "file", language: langMap[ext] || "text" });
-              continue;
-            }
-            try {
-              const content = await file.text();
-              const language = langMap[ext] || "text";
-              newFiles[file.name] = { content, language };
-              treeArr.push({ name: file.name, type: "file", language });
-            } catch {
-              // skip unreadable files
-            }
-          } else if (entry.kind === "directory") {
-            // Skip common non-essential dirs
-            if (["node_modules", ".git", "dist", ".next", ".cache"].includes(entry.name)) continue;
-            const children: FileNode[] = [];
-            await readDir(entry, children);
-            treeArr.push({ name: entry.name, type: "folder", children });
-          }
+      pending++;
+      total++;
+      const reader = new FileReader();
+      reader.onload = () => {
+        newFiles[fileName] = { content: reader.result as string, language };
+        pending--;
+        if (pending === 0) {
+          setFiles(newFiles);
+          setFileTree(rootChildren);
+          setTabs([]);
+          setActiveTab("");
+          toast.success(`Opened ${Object.keys(newFiles).length} files`);
         }
       };
+      reader.readAsText(file);
+    });
 
-      await readDir(dirHandle, newTree);
-      setFiles(newFiles);
-      setFileTree(newTree);
+    if (total === 0) {
+      setFileTree(rootChildren);
+      setFiles({});
       setTabs([]);
       setActiveTab("");
-      toast.success(`Opened folder "${dirHandle.name}" with ${Object.keys(newFiles).length} files`);
-    } catch (err: any) {
-      if (err.name !== "AbortError") {
-        toast.error("Failed to open folder: " + err.message);
-      }
+      toast.info("No readable text files found");
     }
+    // Reset input
+    e.target.value = "";
+  }, []);
+
+  const handleImportProject = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data.files || !Array.isArray(data.files)) {
+          toast.error("Invalid project file format");
+          return;
+        }
+        const langMap: Record<string, string> = {
+          tsx: "tsx", ts: "ts", jsx: "tsx", js: "ts",
+          json: "json", css: "css", md: "md", html: "html",
+          svg: "svg", txt: "text",
+        };
+        const newFiles: Record<string, FileData> = {};
+        const newTree: FileNode[] = [];
+        const folderMap = new Map<string, FileNode>();
+
+        for (const f of data.files) {
+          const parts = f.path.split("/");
+          const fileName = parts[parts.length - 1];
+          const ext = fileName.split(".").pop() || "";
+          const language = langMap[ext] || "text";
+          newFiles[fileName] = { content: f.content, language };
+
+          let currentChildren = newTree;
+          for (let i = 0; i < parts.length - 1; i++) {
+            const key = parts.slice(0, i + 1).join("/");
+            if (!folderMap.has(key)) {
+              const folder: FileNode = { name: parts[i], type: "folder", children: [] };
+              folderMap.set(key, folder);
+              currentChildren.push(folder);
+            }
+            currentChildren = folderMap.get(key)!.children!;
+          }
+          currentChildren.push({ name: fileName, type: "file", language });
+        }
+
+        setFiles(newFiles);
+        setFileTree(newTree);
+        setTabs([]);
+        setActiveTab("");
+        toast.success(`Imported ${data.files.length} files from project`);
+      } catch {
+        toast.error("Failed to parse project file");
+      }
+    };
+    input.click();
   }, []);
 
   const renderSidePanel = () => {
@@ -278,9 +349,17 @@ const Index = () => {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        {...({ webkitdirectory: "", directory: "", multiple: true } as any)}
+        onChange={handleFolderSelected}
+      />
       <TitleBar
         onSaveToLocal={handleSaveToLocal}
         onOpenLocalFolder={handleOpenLocalFolder}
+        onImportProject={handleImportProject}
         onNewFile={() => handleCreateFile("untitled.ts", [])}
       />
       <div className="flex-1 flex overflow-hidden">
