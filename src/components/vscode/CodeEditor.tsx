@@ -1,384 +1,24 @@
-import { useMemo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { FileData } from "@/data/defaultFiles";
 
 interface CodeEditorProps {
   fileName: string;
+  fileData: FileData | null;
+  onContentChange: (fileName: string, content: string) => void;
+  onCursorChange: (line: number, col: number) => void;
 }
-
-const fileContents: Record<string, { lines: string[]; language: string }> = {
-  "App.tsx": {
-    language: "tsx",
-    lines: [
-      'import React from "react";',
-      'import { Header } from "./Header";',
-      'import { Sidebar } from "./Sidebar";',
-      'import { Button } from "./Button";',
-      "",
-      "interface AppProps {",
-      "  title: string;",
-      "  theme?: 'light' | 'dark';",
-      "}",
-      "",
-      "const App: React.FC<AppProps> = ({ title, theme = 'dark' }) => {",
-      "  const [count, setCount] = React.useState(0);",
-      "  const [isOpen, setIsOpen] = React.useState(false);",
-      "",
-      "  const handleIncrement = () => {",
-      "    setCount((prev) => prev + 1);",
-      "  };",
-      "",
-      "  React.useEffect(() => {",
-      "    document.title = `${title} - Count: ${count}`;",
-      "    return () => {",
-      '      document.title = "My App";',
-      "    };",
-      "  }, [title, count]);",
-      "",
-      "  return (",
-      '    <div className={`app ${theme}`}>',
-      "      <Header title={title} />",
-      '      <main className="content">',
-      "        <Sidebar isOpen={isOpen} onToggle={() => setIsOpen(!isOpen)} />",
-      '        <section className="main-content">',
-      "          <h1>{title}</h1>",
-      "          <p>Current count: {count}</p>",
-      "          <Button onClick={handleIncrement}>",
-      "            Increment",
-      "          </Button>",
-      "        </section>",
-      "      </main>",
-      "    </div>",
-      "  );",
-      "};",
-      "",
-      "export default App;",
-    ],
-  },
-  "main.tsx": {
-    language: "tsx",
-    lines: [
-      'import React from "react";',
-      'import ReactDOM from "react-dom/client";',
-      'import App from "./components/App";',
-      'import "./styles/globals.css";',
-      "",
-      'const root = ReactDOM.createRoot(',
-      '  document.getElementById("root") as HTMLElement',
-      ");",
-      "",
-      "root.render(",
-      "  <React.StrictMode>",
-      '    <App title="My Application" theme="dark" />',
-      "  </React.StrictMode>",
-      ");",
-    ],
-  },
-  "index.tsx": {
-    language: "tsx",
-    lines: [
-      'export { default as App } from "./components/App";',
-      'export { Header } from "./components/Header";',
-      'export { Sidebar } from "./components/Sidebar";',
-      'export { Button } from "./components/Button";',
-      'export type { AppProps } from "./components/App";',
-    ],
-  },
-  "Header.tsx": {
-    language: "tsx",
-    lines: [
-      'import React from "react";',
-      "",
-      "interface HeaderProps {",
-      "  title: string;",
-      "  onMenuClick?: () => void;",
-      "}",
-      "",
-      "export const Header: React.FC<HeaderProps> = ({ title, onMenuClick }) => {",
-      "  return (",
-      '    <header className="header">',
-      '      <div className="header-left">',
-      '        <button onClick={onMenuClick} className="menu-btn">',
-      "          ☰",
-      "        </button>",
-      "        <h1>{title}</h1>",
-      "      </div>",
-      '      <nav className="header-nav">',
-      "        <a href=\"/\">Home</a>",
-      '        <a href="/about">About</a>',
-      '        <a href="/contact">Contact</a>',
-      "      </nav>",
-      "    </header>",
-      "  );",
-      "};",
-    ],
-  },
-  "Button.tsx": {
-    language: "tsx",
-    lines: [
-      'import React from "react";',
-      "",
-      "interface ButtonProps {",
-      "  variant?: 'primary' | 'secondary' | 'danger';",
-      "  size?: 'sm' | 'md' | 'lg';",
-      "  disabled?: boolean;",
-      "  onClick?: () => void;",
-      "  children: React.ReactNode;",
-      "}",
-      "",
-      "export const Button: React.FC<ButtonProps> = ({",
-      "  variant = 'primary',",
-      "  size = 'md',",
-      "  disabled = false,",
-      "  onClick,",
-      "  children,",
-      "}) => {",
-      "  const baseClass = 'btn';",
-      "  const variantClass = `btn-${variant}`;",
-      "  const sizeClass = `btn-${size}`;",
-      "",
-      "  return (",
-      "    <button",
-      "      className={`${baseClass} ${variantClass} ${sizeClass}`}",
-      "      disabled={disabled}",
-      "      onClick={onClick}",
-      "    >",
-      "      {children}",
-      "    </button>",
-      "  );",
-      "};",
-    ],
-  },
-  "types.ts": {
-    language: "ts",
-    lines: [
-      "export interface User {",
-      "  id: string;",
-      "  name: string;",
-      "  email: string;",
-      "  role: 'admin' | 'user' | 'guest';",
-      "  createdAt: Date;",
-      "  updatedAt: Date;",
-      "}",
-      "",
-      "export interface ApiResponse<T> {",
-      "  data: T;",
-      "  status: number;",
-      "  message: string;",
-      "  timestamp: string;",
-      "}",
-      "",
-      "export type Theme = 'light' | 'dark' | 'system';",
-      "",
-      "export interface AppConfig {",
-      "  theme: Theme;",
-      "  language: string;",
-      "  notifications: boolean;",
-      "  autoSave: boolean;",
-      "  fontSize: number;",
-      "}",
-    ],
-  },
-  "Sidebar.tsx": {
-    language: "tsx",
-    lines: [
-      'import React from "react";',
-      "",
-      "interface SidebarProps {",
-      "  isOpen: boolean;",
-      "  onToggle: () => void;",
-      "}",
-      "",
-      "const menuItems = [",
-      '  { icon: "📊", label: "Dashboard", path: "/" },',
-      '  { icon: "📁", label: "Projects", path: "/projects" },',
-      '  { icon: "⚙️", label: "Settings", path: "/settings" },',
-      "];",
-      "",
-      "export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {",
-      "  if (!isOpen) return null;",
-      "",
-      "  return (",
-      '    <aside className="sidebar">',
-      "      {menuItems.map((item) => (",
-      "        <a key={item.path} href={item.path}>",
-      "          <span>{item.icon}</span>",
-      "          <span>{item.label}</span>",
-      "        </a>",
-      "      ))}",
-      "    </aside>",
-      "  );",
-      "};",
-    ],
-  },
-  "useTheme.ts": {
-    language: "ts",
-    lines: [
-      'import { useState, useEffect } from "react";',
-      'import { Theme } from "../types";',
-      "",
-      "export const useTheme = (initial: Theme = 'system') => {",
-      "  const [theme, setTheme] = useState<Theme>(initial);",
-      "",
-      "  useEffect(() => {",
-      "    const root = document.documentElement;",
-      "    if (theme === 'system') {",
-      "      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;",
-      "      root.classList.toggle('dark', isDark);",
-      "    } else {",
-      "      root.classList.toggle('dark', theme === 'dark');",
-      "    }",
-      "  }, [theme]);",
-      "",
-      "  return { theme, setTheme };",
-      "};",
-    ],
-  },
-  "useAuth.ts": {
-    language: "ts",
-    lines: [
-      'import { useState, useCallback } from "react";',
-      'import { User } from "../types";',
-      "",
-      "export const useAuth = () => {",
-      "  const [user, setUser] = useState<User | null>(null);",
-      "  const [loading, setLoading] = useState(false);",
-      "",
-      "  const login = useCallback(async (email: string, password: string) => {",
-      "    setLoading(true);",
-      "    try {",
-      "      // API call here",
-      "      const response = await fetch('/api/auth/login', {",
-      "        method: 'POST',",
-      "        body: JSON.stringify({ email, password }),",
-      "      });",
-      "      const data = await response.json();",
-      "      setUser(data.user);",
-      "    } finally {",
-      "      setLoading(false);",
-      "    }",
-      "  }, []);",
-      "",
-      "  const logout = useCallback(() => {",
-      "    setUser(null);",
-      "  }, []);",
-      "",
-      "  return { user, loading, login, logout };",
-      "};",
-    ],
-  },
-  "package.json": {
-    language: "json",
-    lines: [
-      "{",
-      '  "name": "my-project",',
-      '  "version": "1.0.0",',
-      '  "private": true,',
-      '  "scripts": {',
-      '    "dev": "vite",',
-      '    "build": "tsc && vite build",',
-      '    "preview": "vite preview",',
-      '    "lint": "eslint . --ext ts,tsx"',
-      "  },",
-      '  "dependencies": {',
-      '    "react": "^18.3.1",',
-      '    "react-dom": "^18.3.1"',
-      "  },",
-      '  "devDependencies": {',
-      '    "typescript": "^5.4.0",',
-      '    "vite": "^5.2.0",',
-      '    "@types/react": "^18.3.0"',
-      "  }",
-      "}",
-    ],
-  },
-  "tsconfig.json": {
-    language: "json",
-    lines: [
-      "{",
-      '  "compilerOptions": {',
-      '    "target": "ES2020",',
-      '    "module": "ESNext",',
-      '    "lib": ["ES2020", "DOM"],',
-      '    "jsx": "react-jsx",',
-      '    "strict": true,',
-      '    "esModuleInterop": true,',
-      '    "skipLibCheck": true,',
-      '    "outDir": "./dist",',
-      '    "baseUrl": ".",',
-      '    "paths": {',
-      '      "@/*": ["./src/*"]',
-      "    }",
-      "  },",
-      '  "include": ["src"],',
-      '  "exclude": ["node_modules"]',
-      "}",
-    ],
-  },
-  "globals.css": {
-    language: "css",
-    lines: [
-      ":root {",
-      "  --primary: #007acc;",
-      "  --bg-dark: #1e1e1e;",
-      "  --text: #d4d4d4;",
-      "  --border: #333;",
-      "}",
-      "",
-      "* {",
-      "  margin: 0;",
-      "  padding: 0;",
-      "  box-sizing: border-box;",
-      "}",
-      "",
-      "body {",
-      "  font-family: 'Segoe UI', sans-serif;",
-      "  background: var(--bg-dark);",
-      "  color: var(--text);",
-      "}",
-      "",
-      ".app {",
-      "  display: flex;",
-      "  flex-direction: column;",
-      "  min-height: 100vh;",
-      "}",
-    ],
-  },
-  "README.md": {
-    language: "md",
-    lines: [
-      "# My Project",
-      "",
-      "A modern React application built with TypeScript and Vite.",
-      "",
-      "## Getting Started",
-      "",
-      "```bash",
-      "npm install",
-      "npm run dev",
-      "```",
-      "",
-      "## Features",
-      "",
-      "- React 18 with TypeScript",
-      "- Vite for fast development",
-      "- Component-based architecture",
-      "- Dark theme support",
-    ],
-  },
-};
 
 const tokenize = (line: string, language: string) => {
   const tokens: { text: string; className: string }[] = [];
 
   if (language === "json") {
-    let remaining = line;
+    const parts: { start: number; end: number; text: string; cls: string }[] = [];
+    let match;
     const jsonRegex = /("(?:[^"\\]|\\.)*")\s*:/g;
     const valueRegex = /:\s*("(?:[^"\\]|\\.)*")/g;
     const numRegex = /:\s*(\d+)/g;
-
     let lastIndex = 0;
-    const parts: { start: number; end: number; text: string; cls: string }[] = [];
 
-    let match;
     while ((match = jsonRegex.exec(line)) !== null) {
       parts.push({ start: match.index, end: match.index + match[1].length, text: match[1], cls: "text-syntax-variable" });
     }
@@ -410,7 +50,6 @@ const tokenize = (line: string, language: string) => {
     return tokens;
   }
 
-  // Simple tokenizer for TS/TSX
   const patterns: [RegExp, string][] = [
     [/\/\/.*$/, "text-syntax-comment"],
     [/\/\*.*?\*\//, "text-syntax-comment"],
@@ -454,16 +93,70 @@ const tokenize = (line: string, language: string) => {
   return tokens;
 };
 
-const CodeEditor = ({ fileName }: CodeEditorProps) => {
-  const fileData = fileContents[fileName];
+const CodeEditor = ({ fileName, fileData, onContentChange, onCursorChange }: CodeEditorProps) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const content = useMemo(() => {
-    if (!fileData) return null;
-    return fileData.lines.map((line, i) => ({
+  const content = fileData?.content ?? "";
+  const lines = content.split("\n");
+
+  const highlightedLines = useMemo(() => {
+    if (!fileData) return [];
+    return lines.map((line, i) => ({
       number: i + 1,
       tokens: tokenize(line, fileData.language),
     }));
-  }, [fileData]);
+  }, [content, fileData?.language]);
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      onContentChange(fileName, e.target.value);
+    },
+    [fileName, onContentChange]
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const ta = e.currentTarget;
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const value = ta.value;
+        const newValue = value.substring(0, start) + "  " + value.substring(end);
+        onContentChange(fileName, newValue);
+        requestAnimationFrame(() => {
+          ta.selectionStart = ta.selectionEnd = start + 2;
+        });
+      }
+    },
+    [fileName, onContentChange]
+  );
+
+  const updateCursor = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const pos = ta.selectionStart;
+    const textBefore = ta.value.substring(0, pos);
+    const lineNum = textBefore.split("\n").length;
+    const colNum = pos - textBefore.lastIndexOf("\n");
+    onCursorChange(lineNum, colNum);
+  }, [onCursorChange]);
+
+  const handleScroll = useCallback(() => {
+    if (textareaRef.current && highlightRef.current) {
+      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
+      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    }
+  }, []);
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.addEventListener("scroll", handleScroll);
+    return () => ta.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
 
   if (!fileData) {
     return (
@@ -477,25 +170,45 @@ const CodeEditor = ({ fileName }: CodeEditorProps) => {
   }
 
   return (
-    <div className="flex-1 overflow-auto scrollbar-thin bg-vscode-editor font-mono text-[13px] leading-[20px]">
-      <div className="min-w-max">
-        {content?.map(({ number, tokens }) => (
-          <div key={number} className="flex hover:bg-vscode-editor-line group">
-            <div className="w-16 text-right pr-4 pl-4 select-none text-vscode-line-number group-hover:text-vscode-line-number-active shrink-0">
-              {number}
+    <div ref={containerRef} className="flex-1 overflow-hidden bg-vscode-editor font-mono text-[13px] leading-[20px] relative">
+      {/* Syntax highlighted underlay */}
+      <div
+        ref={highlightRef}
+        className="absolute inset-0 overflow-hidden pointer-events-none"
+        aria-hidden="true"
+      >
+        <div className="min-w-max">
+          {highlightedLines.map(({ number, tokens }) => (
+            <div key={number} className="flex" style={{ height: 20 }}>
+              <div className="w-16 text-right pr-4 pl-4 select-none text-vscode-line-number shrink-0">
+                {number}
+              </div>
+              <div className="pr-8 whitespace-pre">
+                {tokens.map((token, j) => (
+                  <span key={j} className={token.className}>
+                    {token.text}
+                  </span>
+                ))}
+                {tokens.length === 0 && <span> </span>}
+              </div>
             </div>
-            <div className="pr-8">
-              {tokens.map((token, j) => (
-                <span key={j} className={token.className}>
-                  {token.text}
-                </span>
-              ))}
-              {tokens.length === 0 && <span>&nbsp;</span>}
-            </div>
-          </div>
-        ))}
-        <div className="h-32" />
+          ))}
+          <div className="h-32" />
+        </div>
       </div>
+
+      {/* Editable textarea overlay */}
+      <textarea
+        ref={textareaRef}
+        value={content}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onClick={updateCursor}
+        onKeyUp={updateCursor}
+        spellCheck={false}
+        className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-foreground resize-none outline-none overflow-auto font-mono text-[13px] leading-[20px] whitespace-pre"
+        style={{ paddingLeft: "4rem", paddingTop: 0, paddingRight: "2rem", tabSize: 2 }}
+      />
     </div>
   );
 };
