@@ -4,6 +4,7 @@ import ActivityBar from "@/components/vscode/ActivityBar";
 import FileExplorer from "@/components/vscode/FileExplorer";
 import SearchPanel from "@/components/vscode/SearchPanel";
 import SourceControlPanel from "@/components/vscode/SourceControlPanel";
+import DebugPanel from "@/components/vscode/DebugPanel";
 import EditorTabs from "@/components/vscode/EditorTabs";
 import Breadcrumbs from "@/components/vscode/Breadcrumbs";
 import CodeEditor from "@/components/vscode/CodeEditor";
@@ -171,6 +172,8 @@ const Index = () => {
         );
       case "git":
         return <SourceControlPanel files={files} modifiedFiles={modifiedFiles} />;
+      case "debug":
+        return <DebugPanel files={files} activeFile={activeTab} />;
       default:
         return null;
     }
