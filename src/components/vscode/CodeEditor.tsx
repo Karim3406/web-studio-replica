@@ -1,6 +1,120 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { FileData } from "@/data/defaultFiles";
 
+interface ErrorDiagnostic {
+  line: number;
+  startCol: number;
+  endCol: number;
+  message: string;
+  severity: "error" | "warning";
+}
+
+const detectErrors = (content: string, language: string): ErrorDiagnostic[] => {
+  const errors: ErrorDiagnostic[] = [];
+  const lines = content.split("\n");
+
+  if (!["tsx", "ts", "jsx", "js"].includes(language)) return errors;
+
+  lines.forEach((line, i) => {
+    // Missing semicolons on statements (not blocks, not comments, not empty, not JSX)
+    const trimmed = line.trim();
+    if (
+      trimmed.length > 0 &&
+      !trimmed.startsWith("//") &&
+      !trimmed.startsWith("/*") &&
+      !trimmed.startsWith("*") &&
+      !trimmed.endsWith("{") &&
+      !trimmed.endsWith("}") &&
+      !trimmed.endsWith(",") &&
+      !trimmed.endsWith(";") &&
+      !trimmed.endsWith("(") &&
+      !trimmed.endsWith(")") &&
+      !trimmed.endsWith(">") &&
+      !trimmed.endsWith(":") &&
+      !trimmed.endsWith("=>") &&
+      !trimmed.startsWith("import") &&
+      !trimmed.startsWith("export") &&
+      !trimmed.startsWith("<") &&
+      !trimmed.startsWith("return") &&
+      !trimmed.startsWith("if") &&
+      !trimmed.startsWith("else") &&
+      !trimmed.startsWith("case") &&
+      !trimmed.startsWith("default") &&
+      /^(const|let|var)\s+\w+\s*=\s*.+[^;,{(>\s]$/.test(trimmed)
+    ) {
+      errors.push({
+        line: i + 1,
+        startCol: line.length - trimmed.length,
+        endCol: line.length,
+        message: "Missing semicolon",
+        severity: "warning",
+      });
+    }
+
+    // Unclosed string literals
+    const singleQuotes = (trimmed.match(/'/g) || []).length;
+    const doubleQuotes = (trimmed.match(/"/g) || []).length;
+    const backticks = (trimmed.match(/`/g) || []).length;
+    if (singleQuotes % 2 !== 0 && !trimmed.includes("'s") && !trimmed.startsWith("//")) {
+      const idx = line.indexOf("'");
+      errors.push({
+        line: i + 1,
+        startCol: idx,
+        endCol: line.length,
+        message: "Unterminated string literal",
+        severity: "error",
+      });
+    }
+
+    // console.log warnings
+    if (trimmed.includes("console.log")) {
+      const idx = line.indexOf("console.log");
+      errors.push({
+        line: i + 1,
+        startCol: idx,
+        endCol: idx + 11,
+        message: "Unexpected console statement",
+        severity: "warning",
+      });
+    }
+
+    // Unmatched brackets on single line
+    const openParens = (line.match(/\(/g) || []).length;
+    const closeParens = (line.match(/\)/g) || []).length;
+    if (
+      openParens > 0 &&
+      closeParens > 0 &&
+      openParens !== closeParens &&
+      !trimmed.startsWith("//")
+    ) {
+      errors.push({
+        line: i + 1,
+        startCol: 0,
+        endCol: line.length,
+        message: "Mismatched parentheses",
+        severity: "error",
+      });
+    }
+
+    // any type usage
+    const anyMatch = trimmed.match(/:\s*any\b/);
+    if (anyMatch && language === "ts" || language === "tsx") {
+      const idx = line.indexOf(anyMatch?.[0] || "");
+      if (anyMatch && idx >= 0) {
+        errors.push({
+          line: i + 1,
+          startCol: idx,
+          endCol: idx + (anyMatch[0]?.length || 3),
+          message: "Unexpected any. Specify a different type",
+          severity: "warning",
+        });
+      }
+    }
+  });
+
+  return errors;
+};
+
 interface CodeEditorProps {
   fileName: string;
   fileData: FileData | null;
@@ -101,6 +215,21 @@ const CodeEditor = ({ fileName, fileData, onContentChange, onCursorChange }: Cod
   const content = fileData?.content ?? "";
   const lines = content.split("\n");
 
+  const diagnostics = useMemo(() => {
+    if (!fileData) return [];
+    return detectErrors(content, fileData.language);
+  }, [content, fileData?.language]);
+
+  const diagnosticsByLine = useMemo(() => {
+    const map = new Map<number, ErrorDiagnostic[]>();
+    for (const d of diagnostics) {
+      const arr = map.get(d.line) || [];
+      arr.push(d);
+      map.set(d.line, arr);
+    }
+    return map;
+  }, [diagnostics]);
+
   const highlightedLines = useMemo(() => {
     if (!fileData) return [];
     return lines.map((line, i) => ({
@@ -178,21 +307,42 @@ const CodeEditor = ({ fileName, fileData, onContentChange, onCursorChange }: Cod
         aria-hidden="true"
       >
         <div className="min-w-max">
-          {highlightedLines.map(({ number, tokens }) => (
-            <div key={number} className="flex" style={{ height: 20 }}>
-              <div className="w-16 text-right pr-4 pl-4 select-none text-vscode-line-number shrink-0">
-                {number}
+          {highlightedLines.map(({ number, tokens }) => {
+            const lineDiags = diagnosticsByLine.get(number) || [];
+            return (
+              <div key={number} className="flex group relative" style={{ height: 20 }}>
+                <div className="w-16 text-right pr-4 pl-4 select-none text-vscode-line-number shrink-0">
+                  {number}
+                </div>
+                <div className="pr-8 whitespace-pre relative">
+                  {tokens.map((token, j) => (
+                    <span key={j} className={token.className}>
+                      {token.text}
+                    </span>
+                  ))}
+                  {tokens.length === 0 && <span> </span>}
+                  {/* Error squiggles */}
+                  {lineDiags.map((diag, di) => {
+                    const lineText = lines[number - 1] || "";
+                    const before = lineText.substring(0, diag.startCol);
+                    return (
+                      <span
+                        key={di}
+                        className={`absolute ${diag.severity === "error" ? "error-squiggle" : "warning-squiggle"}`}
+                        style={{
+                          left: `${before.length}ch`,
+                          width: `${Math.max(diag.endCol - diag.startCol, 1)}ch`,
+                          bottom: 0,
+                          height: "3px",
+                        }}
+                        title={diag.message}
+                      />
+                    );
+                  })}
+                </div>
               </div>
-              <div className="pr-8 whitespace-pre">
-                {tokens.map((token, j) => (
-                  <span key={j} className={token.className}>
-                    {token.text}
-                  </span>
-                ))}
-                {tokens.length === 0 && <span> </span>}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           <div className="h-32" />
         </div>
       </div>

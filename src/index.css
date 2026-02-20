@@ -131,4 +131,20 @@
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground));
   }
+
+  .error-squiggle {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'%3E%3Cpath d='M0 2.5 L1 0.5 L2 2.5 L3 0.5 L4 2.5' fill='none' stroke='%23f14c4c' stroke-width='0.7'/%3E%3C/svg%3E");
+    background-repeat: repeat-x;
+    background-position: bottom;
+    background-size: 4px 3px;
+    padding-bottom: 2px;
+  }
+
+  .warning-squiggle {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'%3E%3Cpath d='M0 2.5 L1 0.5 L2 2.5 L3 0.5 L4 2.5' fill='none' stroke='%23cca700' stroke-width='0.7'/%3E%3C/svg%3E");
+    background-repeat: repeat-x;
+    background-position: bottom;
+    background-size: 4px 3px;
+    padding-bottom: 2px;
+  }
 }
