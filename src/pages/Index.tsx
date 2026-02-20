@@ -1,8 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import TitleBar from "@/components/vscode/TitleBar";
 import ActivityBar from "@/components/vscode/ActivityBar";
 import FileExplorer from "@/components/vscode/FileExplorer";
 import SearchPanel from "@/components/vscode/SearchPanel";
+import SourceControlPanel from "@/components/vscode/SourceControlPanel";
 import EditorTabs from "@/components/vscode/EditorTabs";
 import Breadcrumbs from "@/components/vscode/Breadcrumbs";
 import CodeEditor from "@/components/vscode/CodeEditor";
@@ -28,6 +29,10 @@ const Index = () => {
   const [files, setFiles] = useState<Record<string, FileData>>(defaultFileContents);
   const [fileTree, setFileTree] = useState<FileNode[]>(defaultFileTree);
   const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
+
+  const modifiedFiles = useMemo(() => {
+    return new Set(tabs.filter((t) => t.modified).map((t) => t.name));
+  }, [tabs]);
 
   const handleFileSelect = useCallback(
     (fileName: string) => {
@@ -164,6 +169,8 @@ const Index = () => {
             }}
           />
         );
+      case "git":
+        return <SourceControlPanel files={files} modifiedFiles={modifiedFiles} />;
       default:
         return null;
     }
