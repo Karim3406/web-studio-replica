@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from "react";
+import JSZip from "jszip";
 import { toast } from "sonner";
 import TitleBar from "@/components/vscode/TitleBar";
 import ActivityBar from "@/components/vscode/ActivityBar";
@@ -146,35 +147,29 @@ const Index = () => {
     setCursorPos({ line, col });
   }, []);
 
-  const handleSaveToLocal = useCallback(() => {
-    // Build all files into a single JSON and download as zip-like structure
-    // We'll download each file individually or as a combined JSON
-    const allFiles: { path: string; content: string }[] = [];
+  const handleSaveToLocal = useCallback(async () => {
+    const zip = new JSZip();
 
-    const collectFiles = (nodes: FileNode[], parentPath: string) => {
+    const addToZip = (nodes: FileNode[], parentPath: string) => {
       for (const node of nodes) {
         if (node.type === "folder" && node.children) {
-          collectFiles(node.children, parentPath ? `${parentPath}/${node.name}` : node.name);
+          addToZip(node.children, parentPath ? `${parentPath}/${node.name}` : node.name);
         } else if (node.type === "file" && files[node.name]) {
-          allFiles.push({
-            path: parentPath ? `${parentPath}/${node.name}` : node.name,
-            content: files[node.name].content,
-          });
+          const filePath = parentPath ? `${parentPath}/${node.name}` : node.name;
+          zip.file(filePath, files[node.name].content);
         }
       }
     };
-    collectFiles(fileTree, "");
+    addToZip(fileTree, "");
 
-    // Download as a single JSON manifest
-    const manifest = JSON.stringify({ files: allFiles }, null, 2);
-    const blob = new Blob([manifest], { type: "application/json" });
+    const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "project-export.json";
+    a.download = "project.zip";
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(`Project exported with ${allFiles.length} files!`);
+    toast.success("Project exported as ZIP — unzip and open in VS Code!");
   }, [files, fileTree]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -204,15 +199,12 @@ const Index = () => {
     Array.from(inputFiles).forEach((file) => {
       const path = (file as any).webkitRelativePath || file.name;
       const parts = path.split("/");
-      // Remove root folder name (the selected folder)
       if (parts.length > 1) parts.shift();
-      // Skip unwanted dirs
       if (parts.some((p: string) => skipDirs.includes(p))) return;
 
       const fileName = parts[parts.length - 1];
       const ext = fileName.split(".").pop() || "";
 
-      // Build folder structure
       let currentChildren = rootChildren;
       for (let i = 0; i < parts.length - 1; i++) {
         const dirName = parts[i];
@@ -254,39 +246,43 @@ const Index = () => {
       setActiveTab("");
       toast.info("No readable text files found");
     }
-    // Reset input
     e.target.value = "";
   }, []);
 
   const handleImportProject = useCallback(() => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".json";
+    input.accept = ".zip";
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-        if (!data.files || !Array.isArray(data.files)) {
-          toast.error("Invalid project file format");
-          return;
-        }
+        const zip = await JSZip.loadAsync(file);
         const langMap: Record<string, string> = {
           tsx: "tsx", ts: "ts", jsx: "tsx", js: "ts",
           json: "json", css: "css", md: "md", html: "html",
           svg: "svg", txt: "text",
         };
+        const binaryExts = ["png", "jpg", "jpeg", "gif", "webp", "woff", "woff2", "ttf", "otf", "eot", "ico", "mp3", "mp4"];
+        const skipDirs = ["node_modules", ".git", "dist", ".next", ".cache"];
+
         const newFiles: Record<string, FileData> = {};
         const newTree: FileNode[] = [];
         const folderMap = new Map<string, FileNode>();
 
-        for (const f of data.files) {
-          const parts = f.path.split("/");
+        const entries = Object.keys(zip.files).filter(p => !zip.files[p].dir);
+
+        for (const fullPath of entries) {
+          const parts = fullPath.split("/").filter(Boolean);
+          if (parts.some(p => skipDirs.includes(p))) continue;
+
           const fileName = parts[parts.length - 1];
           const ext = fileName.split(".").pop() || "";
+          if (binaryExts.includes(ext)) continue;
+
           const language = langMap[ext] || "text";
-          newFiles[fileName] = { content: f.content, language };
+          const content = await zip.files[fullPath].async("string");
+          newFiles[fileName] = { content, language };
 
           let currentChildren = newTree;
           for (let i = 0; i < parts.length - 1; i++) {
@@ -305,9 +301,9 @@ const Index = () => {
         setFileTree(newTree);
         setTabs([]);
         setActiveTab("");
-        toast.success(`Imported ${data.files.length} files from project`);
+        toast.success(`Imported ${Object.keys(newFiles).length} files from ZIP`);
       } catch {
-        toast.error("Failed to parse project file");
+        toast.error("Failed to read ZIP file");
       }
     };
     input.click();
