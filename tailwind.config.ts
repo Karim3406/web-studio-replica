@@ -82,6 +82,8 @@ export default {
           badge: "hsl(var(--vscode-badge))",
           "badge-foreground": "hsl(var(--vscode-badge-foreground))",
           "find-match": "hsl(var(--vscode-find-match))",
+          "search-match": "hsl(var(--vscode-search-match))",
+          "search-match-foreground": "hsl(var(--vscode-search-match-foreground))",
           input: "hsl(var(--vscode-input))",
           "input-border": "hsl(var(--vscode-input-border))",
         },

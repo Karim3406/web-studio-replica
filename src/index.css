@@ -58,6 +58,8 @@
     --vscode-badge: 207 90% 40%;
     --vscode-badge-foreground: 0 0% 100%;
     --vscode-find-match: 30 80% 40%;
+    --vscode-search-match: 30 80% 40%;
+    --vscode-search-match-foreground: 0 0% 100%;
     --vscode-input: 220 13% 17%;
     --vscode-input-border: 207 90% 40%;
 

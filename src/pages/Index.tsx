@@ -152,7 +152,18 @@ const Index = () => {
           />
         );
       case "search":
-        return <SearchPanel />;
+        return (
+          <SearchPanel
+            files={files}
+            onFileSelect={handleFileSelect}
+            onReplaceInFile={(fileName, search, replace, all) => {
+              const file = files[fileName];
+              if (!file) return;
+              const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), all ? "g" : "");
+              handleFileContentChange(fileName, file.content.replace(regex, replace));
+            }}
+          />
+        );
       default:
         return null;
     }
