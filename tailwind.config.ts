@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        mono: ["'JetBrains Mono'", "'Cascadia Code'", "'Fira Code'", "Consolas", "monospace"],
+        sans: ["'Segoe UI'", "system-ui", "-apple-system", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,6 +61,46 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        vscode: {
+          titlebar: "hsl(var(--vscode-titlebar))",
+          activitybar: "hsl(var(--vscode-activitybar))",
+          "activitybar-foreground": "hsl(var(--vscode-activitybar-foreground))",
+          "activitybar-inactive": "hsl(var(--vscode-activitybar-inactive))",
+          sidebar: "hsl(var(--vscode-sidebar))",
+          "sidebar-foreground": "hsl(var(--vscode-sidebar-foreground))",
+          editor: "hsl(var(--vscode-editor))",
+          "editor-line": "hsl(var(--vscode-editor-line))",
+          terminal: "hsl(var(--vscode-terminal))",
+          statusbar: "hsl(var(--vscode-statusbar))",
+          "statusbar-foreground": "hsl(var(--vscode-statusbar-foreground))",
+          "tab-active": "hsl(var(--vscode-tab-active))",
+          "tab-inactive": "hsl(var(--vscode-tab-inactive))",
+          "tab-border": "hsl(var(--vscode-tab-border))",
+          selection: "hsl(var(--vscode-selection))",
+          "line-number": "hsl(var(--vscode-line-number))",
+          "line-number-active": "hsl(var(--vscode-line-number-active))",
+          badge: "hsl(var(--vscode-badge))",
+          "badge-foreground": "hsl(var(--vscode-badge-foreground))",
+          "find-match": "hsl(var(--vscode-find-match))",
+        },
+        syntax: {
+          keyword: "hsl(var(--syntax-keyword))",
+          string: "hsl(var(--syntax-string))",
+          number: "hsl(var(--syntax-number))",
+          comment: "hsl(var(--syntax-comment))",
+          function: "hsl(var(--syntax-function))",
+          variable: "hsl(var(--syntax-variable))",
+          type: "hsl(var(--syntax-type))",
+          operator: "hsl(var(--syntax-operator))",
+          tag: "hsl(var(--syntax-tag))",
+          attribute: "hsl(var(--syntax-attribute))",
+          punctuation: "hsl(var(--syntax-punctuation))",
+          constant: "hsl(var(--syntax-constant))",
+          decorator: "hsl(var(--syntax-decorator))",
+          regex: "hsl(var(--syntax-regex))",
+          "jsx-tag": "hsl(var(--syntax-jsx-tag))",
+          "jsx-component": "hsl(var(--syntax-jsx-component))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -65,25 +109,22 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        "cursor-blink": {
+          "0%, 50%": { opacity: "1" },
+          "51%, 100%": { opacity: "0" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "cursor-blink": "cursor-blink 1s step-end infinite",
       },
     },
   },
