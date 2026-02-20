@@ -57,7 +57,7 @@ const TitleBar = ({ onSaveToLocal, onOpenLocalFolder, onImportProject, onNewFile
                   onClick={() => { onImportProject?.(); setFileMenuOpen(false); }}
                 >
                   <Upload size={14} className="text-muted-foreground" />
-                  Import Project (.json)...
+                  Import from ZIP...
                 </button>
                 <div className="border-t border-border my-1" />
                 <button
@@ -65,7 +65,7 @@ const TitleBar = ({ onSaveToLocal, onOpenLocalFolder, onImportProject, onNewFile
                   onClick={() => { onSaveToLocal?.(); setFileMenuOpen(false); }}
                 >
                   <Download size={14} className="text-muted-foreground" />
-                  Export Project (.json)
+                  Export as ZIP
                   <span className="ml-auto text-muted-foreground text-xs">Ctrl+S</span>
                 </button>
               </div>
